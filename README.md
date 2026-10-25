@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # TrustVault 🔐
 
 ### Secure Document Sharing and Management Platform
@@ -299,3 +300,7 @@ Recommended practices include:
 * Consider malware scanning for uploaded files.
 * Verify backup restoration and incident-response procedures.
 
+=======
+# TrustVault
+TrustVault is a secure document-sharing platform with role-based access control, document permissions, and audit logging, built using Angular, Node.js, Express, and MongoDB.
+>>>>>>> 5ce9917c97ace7ad552fa12b8ca6ce42b7611346
