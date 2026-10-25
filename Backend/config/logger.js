@@ -16,9 +16,60 @@ const winston = require('winston');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure logs directory exists
+// Determine whether file logging is safe for this runtime.
+// Vercel's serverless filesystem is read-only except for /tmp, and the
+// application must not try to create directories under /var/task. In that
+// environment we keep logging on the Console transport only (stdout/stderr)
+// so Vercel can capture it. Local development preserves file logging.
+const isVercel = Boolean(process.env.VERCEL || process.env.VERCEL_ENV || process.env.VERCEL_URL);
+const fileLoggingEnabled = !isVercel;
+
+// Logs directory (only used when file logging is enabled)
 const logsDir = path.join(__dirname, '..', 'logs');
-fs.mkdirSync(logsDir, { recursive: true });
+
+if (fileLoggingEnabled) {
+  try {
+    fs.mkdirSync(logsDir, { recursive: true });
+  } catch (err) {
+    // If the directory cannot be created (e.g. read-only filesystem), fall
+    // back to console-only logging instead of crashing startup.
+    // eslint-disable-next-line no-console
+    console.warn('File logging disabled: unable to create logs directory:', err.message);
+  }
+}
+
+// Re-evaluate after the attempted mkdir so a failure disables file transports.
+const fileLoggingAvailable = fileLoggingEnabled && fs.existsSync(logsDir);
+
+// Build the optional file transports. Returns an empty array when file logging
+// is disabled (e.g. Vercel serverless) so no files are created under /var/task.
+function buildFileTransports() {
+  if (!fileLoggingAvailable) return [];
+  return [
+    // File transports — errors go to dedicated file for quick triage
+    new winston.transports.File({
+      filename: path.join(logsDir, 'error.log'),
+      level: 'error',
+      maxsize: 10 * 1024 * 1024, // 10MB
+      maxFiles: 5,
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      )
+    }),
+
+    // Combined log — all levels
+    new winston.transports.File({
+      filename: path.join(logsDir, 'combined.log'),
+      maxsize: 10 * 1024 * 1024, // 10MB
+      maxFiles: 5,
+      format: winston.format.combine(
+        winston.format.timestamp(),
+        winston.format.json()
+      )
+    })
+  ];
+}
 
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -58,28 +109,8 @@ const logger = winston.createLogger({
     // Console transport — always active
     new winston.transports.Console(),
 
-    // File transports — errors go to dedicated file for quick triage
-    new winston.transports.File({
-      filename: path.join(logsDir, 'error.log'),
-      level: 'error',
-      maxsize: 10 * 1024 * 1024, // 10MB
-      maxFiles: 5,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    }),
-
-    // Combined log — all levels
-    new winston.transports.File({
-      filename: path.join(logsDir, 'combined.log'),
-      maxsize: 10 * 1024 * 1024, // 10MB
-      maxFiles: 5,
-      format: winston.format.combine(
-        winston.format.timestamp(),
-        winston.format.json()
-      )
-    })
+    // File transports — only when the runtime permits writing (not Vercel)
+    ...buildFileTransports()
   ],
 
   // Don't crash the process on an unhandled log error
@@ -113,25 +144,7 @@ const createChildLogger = (name) => {
     defaultMeta: { service: 'trustvault', module: name },
     transports: [
       new winston.transports.Console(),
-      new winston.transports.File({
-        filename: path.join(logsDir, 'error.log'),
-        level: 'error',
-        maxsize: 10 * 1024 * 1024,
-        maxFiles: 5,
-        format: winston.format.combine(
-          winston.format.timestamp(),
-          winston.format.json()
-        )
-      }),
-      new winston.transports.File({
-        filename: path.join(logsDir, 'combined.log'),
-        maxsize: 10 * 1024 * 1024,
-        maxFiles: 5,
-        format: winston.format.combine(
-          winston.format.timestamp(),
-          winston.format.json()
-        )
-      })
+      ...buildFileTransports()
     ],
     exitOnError: false
   });
