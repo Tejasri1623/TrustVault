@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { TextDecoder } = require("util");
+const { getUploadRoot } = require("./uploadPaths");
 
 const allowedTypes = {
   ".pdf": ["application/pdf"],
@@ -81,8 +82,15 @@ function resolvePrivateFilePath(filePath) {
     return null;
   }
 
-  const uploadRoot = path.resolve(__dirname, "..", "uploads");
-  const resolvedPath = path.resolve(__dirname, "..", normalized);
+  // Strip the logical "uploads/" prefix and resolve against the runtime's
+  // actual upload root (Backend/uploads locally, /tmp on Vercel).
+  const relativeWithinUploads = normalized.slice("uploads/".length).replace(/^\/+/, "");
+  if (!relativeWithinUploads) {
+    throw new Error("Invalid private document path");
+  }
+
+  const uploadRoot = getUploadRoot();
+  const resolvedPath = path.resolve(uploadRoot, relativeWithinUploads);
   const relativePath = path.relative(uploadRoot, resolvedPath);
   if (!relativePath || relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     throw new Error("Invalid private document path");

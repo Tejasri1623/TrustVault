@@ -3,9 +3,12 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const { sanitizeFileName } = require("../utils/fileSecurity");
+const { ensureUploadRoot } = require("../utils/uploadPaths");
 
-const uploadDir = path.join(__dirname, "..", "uploads");
-fs.mkdirSync(uploadDir, { recursive: true });
+// Resolve the upload directory for this runtime. On Vercel this is under
+// /tmp (the only writable location); locally it remains Backend/uploads.
+// The directory is created defensively and never under /var/task.
+const uploadDir = ensureUploadRoot();
 
 const allowedTypes = require("../utils/fileSecurity").allowedTypes;
 
@@ -28,7 +31,7 @@ const fileFilter = (req, file, cb) => {
   return cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file.fieldname));
 };
 
-module.exports = multer({
+const upload = multer({
   storage,
   fileFilter,
   limits: {
@@ -36,3 +39,8 @@ module.exports = multer({
     files: 20
   }
 });
+
+// Expose for diagnostics/tests without changing the multer instance contract.
+upload.uploadDir = uploadDir;
+
+module.exports = upload;

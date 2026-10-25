@@ -1114,7 +1114,11 @@ async function reanalyzeStuckDocuments() {
       doc.status = "processing";
       await doc.save();
 
-      const filePath = path.join(__dirname, "..", doc.filePath);
+      const filePath = resolvePrivateFilePath(doc.filePath);
+      if (!filePath) {
+        logger.warn("Skipping stuck document without local file", { documentId: doc._id.toString(), filePath: doc.filePath });
+        continue;
+      }
       queueDocumentEnrichment(doc._id, filePath, doc.fileName);
     }
 

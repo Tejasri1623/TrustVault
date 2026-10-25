@@ -15,6 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { getUploadRoot, ensureUploadRoot } = require('../utils/uploadPaths');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const { config } = require('../config/emailConfig');
@@ -32,7 +33,7 @@ const logger = createChildLogger('EmailIngestion');
  * Directory where email attachments are saved, relative to Backend root.
  * Uses a subdirectory to keep email-ingested files separate from manual uploads.
  */
-const EMAIL_UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'email');
+const EMAIL_UPLOAD_DIR = path.join(getUploadRoot(), 'email');
 
 /**
  * MIME type → extension mapping for attachments that arrive with a MIME type
@@ -301,7 +302,7 @@ async function getOrCreateBotUser() {
  * Called once on module load and before each save operation.
  */
 function ensureUploadDir() {
-  fs.mkdirSync(EMAIL_UPLOAD_DIR, { recursive: true });
+  ensureUploadRoot('email');
 }
 
 /**
