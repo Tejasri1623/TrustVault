@@ -90,6 +90,31 @@ app.get("/health/ready", (req, res) => {
   return res.status(200).json({ status: "ready", database: "connected" });
 });
 
+// Keep the non-database landing page available even when MongoDB is down.
+app.get("/", (req, res) => {
+  res.render("home");
+});
+
+// Gate every database-dependent route behind one cached connection attempt.
+// This prevents buffered Mongoose operations from turning into HTTP 500s.
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (error) {
+    logger.error("Database unavailable", {
+      error: error.message,
+      errorName: error.name,
+      errorCode: error.code
+    });
+    return res.status(503).json({
+      status: "degraded",
+      database: "disconnected",
+      message: "Database unavailable. Please try again shortly."
+    });
+  }
+});
+
 app.use("/", userRouter);
 app.get("/dashboard", auth, (req, res) => res.render("dashboard"));
 app.get("/admin/dashboard", auth, adminOnly, (req, res) => res.render("admin.dashboard.ejs"));
@@ -104,10 +129,6 @@ app.use("/", workflowsRoute); // workflows APIs and view
 app.use("/", activityRoutes);
 app.use("/api/settings", storageRoutes);
 app.use("/admin", adminRoutes);
-
-app.get('/', (req, res) => {
-  res.render('home');
-});
 
 app.use((req, res) => {
   res.status(404).json({ message: "Route not found" });

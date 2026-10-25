@@ -165,7 +165,11 @@ router.post(
       }
       return res.redirect("/login");
     } catch (err) {
-      logger.error("Registration error", { error: err.message });
+      logger.error("Registration error", {
+        error: err.message,
+        errorName: err.name,
+        errorCode: err.code
+      });
       if (err.code === 11000) {
         return res.status(409).json({ message: "An account already exists with that email or username" });
       }
