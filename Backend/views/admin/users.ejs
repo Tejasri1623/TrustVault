@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustVault | User Management</title>
+  <link rel="stylesheet" href="/assets/css/enterprise.css">
+  <link rel="icon" type="image/svg+xml" href="/assets/images/trustvault-mark.svg">
+  <style>
+    body { padding: 2rem; }
+    main { max-width: 1200px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
+    h1 { margin: 0; }
+    a { color: #daaf37; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 16px; background: rgba(26, 14, 46, .85); }
+    table { width: 100%; border-collapse: collapse; min-width: 760px; }
+    th, td { padding: .9rem 1rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+    select, button { border: 1px solid var(--border); border-radius: 8px; padding: .55rem .7rem; color: var(--text); background: var(--surface); }
+    button { cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    #status { color: var(--muted); margin: 1rem 0; }
+    @media (max-width: 640px) { body { padding: 1rem; } header { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p>TrustVault administration</p>
+        <h1>User management</h1>
+      </div>
+      <a href="/admin/dashboard">Back to admin dashboard</a>
+    </header>
+    <p id="status" role="status">Loading users…</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Name</th><th>Email</th><th>Role</th><th>Registered</th><th>Action</th></tr>
+        </thead>
+        <tbody id="users"></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const statusElement = document.getElementById("status");
+    const tableBody = document.getElementById("users");
+    const currentAdminId = "<%= locals.user._id %>";
+    const roles = [
+      ["admin", "Administrator"],
+      ["owner", "Document Owner"],
+      ["editor", "Editor"],
+      ["viewer", "Viewer"]
+    ];
+
+    async function loadUsers() {
+      const response = await fetch("/admin/api/users", { headers: { Accept: "application/json" } });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Unable to load users.");
+      tableBody.replaceChildren();
+      for (const user of data.users) {
+        const row = document.createElement("tr");
+        for (const value of [user.username, user.email, null, new Date(user.createdAt).toLocaleDateString(), null]) {
+          const cell = document.createElement("td");
+          if (value !== null) cell.textContent = String(value);
+          row.appendChild(cell);
+        }
+        const roleSelect = document.createElement("select");
+        roleSelect.disabled = user.id === currentAdminId || user.role === "admin";
+        for (const [value, label] of roles) {
+          const option = document.createElement("option");
+          option.value = value;
+          option.textContent = label;
+          option.selected = user.role === value;
+          roleSelect.appendChild(option);
+        }
+        row.children[2].appendChild(roleSelect);
+        const saveButton = document.createElement("button");
+        saveButton.type = "button";
+        saveButton.textContent = "Save role";
+        saveButton.disabled = user.id === currentAdminId || user.role === "admin";
+        saveButton.addEventListener("click", async () => {
+          saveButton.disabled = true;
+          try {
+            const update = await fetch(`/admin/api/users/${encodeURIComponent(user.id)}/role`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ role: roleSelect.value })
+            });
+            const result = await update.json();
+            if (!update.ok) throw new Error(result.message || "Unable to update role.");
+            statusElement.textContent = `${user.username}'s role was updated.`;
+            user.role = roleSelect.value;
+          } catch (error) {
+            statusElement.textContent = error.message;
+          } finally {
+            saveButton.disabled = user.id === currentAdminId || user.role === "admin";
+          }
+        });
+        row.children[4].appendChild(saveButton);
+        tableBody.appendChild(row);
+      }
+      statusElement.textContent = `Showing ${data.users.length} accounts (maximum 100).`;
+    }
+
+    loadUsers().catch((error) => {
+      statusElement.textContent = error.message;
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,434 @@
+const express = require('express');
+const router = (express.Router());
+const { body, validationResult } = require('express-validator');
+const User = require('../models/user.model');
+const Activity = require("../models/activity.model");
+const bcrypt = require('bcrypt');
+const jwt=require("jsonwebtoken");
+const rateLimit = require("express-rate-limit");
+const crypto = require("crypto");
+const { sendEmail } = require("../utils/email");
+const auth = require("../middlewares/auth.middleware");
+const logger = require("../config/logger").createChildLogger("UserRoutes");
+const { PUBLIC_REGISTRATION_ROLES, normalizeSystemRole } = require("../services/rolePolicy.service");
+
+const isProduction = process.env.NODE_ENV === "production";
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many login attempts. Please try again later." }
+});
+
+function getCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "strict" : "lax",
+    maxAge: 24 * 60 * 60 * 1000,
+    path: "/"
+  };
+}
+
+function getClearCookieOptions() {
+  const { httpOnly, secure, sameSite, path } = getCookieOptions();
+  return { httpOnly, secure, sameSite, path };
+}
+
+async function invalidateToken(token) {
+  if (!token) return;
+
+  let decoded;
+  try {
+    decoded = jwt.verify(token, process.env.JWT_SECRET);
+  } catch {
+    return;
+  }
+  if (!decoded.userId) return;
+
+  const tokenVersion = decoded.tokenVersion || 0;
+  const filter = { _id: decoded.userId };
+  if (tokenVersion === 0) {
+    filter.$or = [{ tokenVersion: 0 }, { tokenVersion: { $exists: false } }];
+  } else {
+    filter.tokenVersion = tokenVersion;
+  }
+  await User.updateOne(filter, { $inc: { tokenVersion: 1 } });
+}
+
+async function logout(req, res, wantsJson) {
+  try {
+    await invalidateToken(req.cookies?.token);
+    res.clearCookie("token", getClearCookieOptions());
+    if (wantsJson) return res.json({ success: true });
+    return res.redirect("/");
+  } catch (error) {
+    logger.error("Logout token revocation failed", { error: error.message });
+    res.clearCookie("token", getClearCookieOptions());
+    if (wantsJson) return res.status(503).json({ message: "Could not invalidate the server-side token" });
+    return res.status(503).send("Could not securely complete logout. Please try again.");
+  }
+}
+
+router.get("/test",(req,res)=>{
+    res.send("user test")
+})
+router.get('/register',(req,res)=>{
+    res.render('register');
+
+
+});
+router.post(
+  "/register",
+
+  body("username").isString().trim().isLength({ min: 3, max: 100 }).withMessage("Name must be between 3 and 100 characters"),
+  body("email").isString().trim().isEmail().isLength({ max: 254 }).withMessage("Enter a valid email address"),
+  body("role").isString().isIn(PUBLIC_REGISTRATION_ROLES).withMessage("Choose Document Owner, Editor, or Viewer"),
+  body("password")
+    .isLength({ min: 8 })
+    .withMessage("Password must be at least 8 characters long")
+    .isLength({ max: 128 })
+    .withMessage("Password must not exceed 128 characters")
+    .matches(/[A-Z]/)
+    .withMessage("Password must include at least one uppercase letter")
+    .matches(/[a-z]/)
+    .withMessage("Password must include at least one lowercase letter")
+    .matches(/[0-9]/)
+    .withMessage("Password must include at least one number"),
+  body("confirm-password")
+    .trim()
+    .isLength({ min: 8 })
+    .withMessage("Confirm password must be at least 8 characters long"),
+
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+
+      if (!errors.isEmpty()) {
+        return res.status(400).json({
+          errors: errors.array(),
+          message: "Invalid input data",
+        });
+      }
+
+      const { username, email, password } = req.body;
+      const confirmPassword = req.body['confirm-password'];
+      const normalizedUsername = typeof username === "string" ? username.trim() : "";
+      const normalizedEmail = typeof email === "string" ? email.toLowerCase().trim() : "";
+
+      if (password !== confirmPassword) {
+        return res.status(400).json({
+          message: "Passwords do not match",
+        });
+      }
+
+      if (!normalizedUsername || !normalizedEmail) {
+        return res.status(400).json({ message: "Invalid input data" });
+      }
+
+      const existingEmail = await User.findOne({ email: normalizedEmail });
+      if (existingEmail) {
+        return res.status(400).json({
+          message: "User with this email already exists",
+        });
+      }
+
+      const existingUsername = await User.findOne({ username: normalizedUsername });
+      if (existingUsername) {
+        return res.status(400).json({
+          message: "Username is already taken",
+        });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      const newUser = new User({
+        username: normalizedUsername,
+        email: normalizedEmail,
+        password: hashedPassword,
+        role: req.body.role,
+      });
+
+      await newUser.save(); 
+
+      await Activity.create({
+        user: newUser._id,
+        action: "Registered account",
+        entityType: "User",
+        entityName: newUser.username
+      });
+
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.json({ success: true, redirect: "/login" });
+      }
+      return res.redirect("/login");
+    } catch (err) {
+      logger.error("Registration error", { error: err.message });
+      if (err.code === 11000) {
+        return res.status(409).json({ message: "An account already exists with that email or username" });
+      }
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.status(500).json({ message: "Database error occurred" });
+      }
+      return res.status(500).send("Database error");
+    }
+  }
+);
+
+
+router.get('/login',(req,res)=>{
+    res.render('login');
+})
+router.post('/login', loginLimiter, async (req, res) => {
+  try {
+    const email = typeof req.body.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const password = typeof req.body.password === "string" ? req.body.password : "";
+
+    if (!email || !password) {
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.status(400).json({ message: "Email and password required" });
+      }
+      return res.status(400).send("Email and password required");
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      return res.status(401).send("Invalid credentials");
+    }
+
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.status(401).json({ message: "Invalid credentials" });
+      }
+      return res.status(401).send("Invalid credentials");
+    }
+
+    const systemRole = normalizeSystemRole(user.role);
+    const token = jwt.sign(
+      {
+        userId: user._id.toString(),
+        role: systemRole,
+        tokenVersion: user.tokenVersion || 0
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || "1d" }
+    );
+
+    res.cookie("token", token, {
+      ...getCookieOptions()
+    });
+
+    if (req.headers['accept']?.includes('application/json')) {
+      return res.json({ 
+        success: true, 
+        redirect: systemRole === "admin" ? "/admin/dashboard" : "/dashboard", 
+        role: systemRole, 
+        username: user.username 
+      });
+    }
+    return res.redirect(systemRole === "admin" ? "/admin/dashboard" : "/dashboard");
+  } catch (err) {
+      logger.error("Login error", { error: err.message });
+    if (req.headers['accept']?.includes('application/json')) {
+      return res.status(500).json({ message: "Login failed" });
+    }
+    return res.status(500).send("Login failed");
+  }
+});
+
+router.get("/logout", (req, res) => {
+  return logout(req, res, false);
+});
+
+router.post("/logout", (req, res) => {
+  return logout(req, res, req.headers['accept']?.includes('application/json'));
+});
+
+router.get("/forgot-password", (req, res) => {
+  res.render("forgot-password");
+});
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+    const normalizedEmail = String(email || "").toLowerCase().trim();
+    const user = normalizedEmail ? await User.findOne({ email: normalizedEmail }) : null;
+    
+    if (user) {
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
+      user.resetPasswordToken = hashedToken;
+      user.resetPasswordExpires = Date.now() + 3600000; // 1 hour
+      await user.save();
+
+      const resetUrl = `${req.protocol}://${req.get("host")}/reset-password/${rawToken}`;
+      const message = `
+        <p>You are receiving this because you (or someone else) have requested the reset of the password for your account.</p>
+        <p>Please click on the following link, or paste this into your browser to complete the process:</p>
+        <a href="${resetUrl}">${resetUrl}</a>
+        <p>If you did not request this, please ignore this email and your password will remain unchanged.</p>
+      `;
+
+      await sendEmail({
+        to: user.email,
+        subject: "Password Reset Request",
+        html: message,
+      });
+    }
+
+    if (req.headers['accept']?.includes('application/json')) {
+      return res.json({ success: true, message: "If an account exists for that email, reset instructions have been sent." });
+    }
+    res.send("If an account exists for that email, reset instructions have been sent.");
+
+  } catch (err) {
+    logger.error("Forgot password error", { error: err.message });
+    if (req.headers['accept']?.includes('application/json')) {
+      return res.status(500).json({ message: "Error sending reset email." });
+    }
+    return res.status(500).send("Error sending reset email.");
+  }
+});
+
+router.get("/reset-password/:token", async (req, res) => {
+  try {
+    const hashedToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).send("Password reset token is invalid or has expired.");
+    }
+
+    res.render("reset-password", { token: req.params.token });
+  } catch (err) {
+    logger.error("Reset password GET error", { error: err.message });
+    res.status(500).send("Server error");
+  }
+});
+
+router.post("/reset-password/:token", async (req, res) => {
+  try {
+    const { password } = req.body;
+    
+    if (!password || password.length < 8) {
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.status(400).json({ message: "Password must be at least 8 characters long." });
+      }
+      return res.status(400).send("Password must be at least 8 characters long.");
+    }
+
+    const hashedToken = crypto.createHash("sha256").update(req.params.token).digest("hex");
+    const user = await User.findOne({
+      resetPasswordToken: hashedToken,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      if (req.headers['accept']?.includes('application/json')) {
+        return res.status(400).json({ message: "Password reset token is invalid or has expired." });
+      }
+      return res.status(400).send("Password reset token is invalid or has expired.");
+    }
+
+    user.password = await bcrypt.hash(password, 10);
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    await Activity.create({
+      user: user._id,
+      action: "Reset password",
+      entityType: "User",
+      entityName: user.username
+    });
+
+    if (req.headers['accept']?.includes('application/json')) {
+      return res.json({ success: true, redirect: "/login", message: "Success! Your password has been changed." });
+    }
+    res.redirect("/login");
+  } catch (err) {
+    logger.error("Reset password error", { error: err.message });
+    if (req.headers['accept']?.includes('application/json')) {
+      return res.status(500).json({ message: "Error resetting password." });
+    }
+    return res.status(500).send("Error resetting password.");
+  }
+});
+
+// --- Settings Routes ---
+router.put(
+  "/api/settings/profile",
+  auth,
+  body("username").optional().trim().isLength({ min: 3 }),
+  body("email").optional().trim().isEmail(),
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
+
+      const { username, email } = req.body;
+      const user = await User.findById(req.user.id);
+
+      if (username) {
+        const existingUsername = await User.findOne({ username, _id: { $ne: user._id } });
+        if (existingUsername) return res.status(400).json({ message: "Username already taken" });
+        user.username = username;
+      }
+      
+      if (email) {
+        const existingEmail = await User.findOne({ email, _id: { $ne: user._id } });
+        if (existingEmail) return res.status(400).json({ message: "Email already taken" });
+        user.email = email;
+      }
+
+      await user.save();
+      res.json({ message: "Profile updated successfully", user: { username: user.username, email: user.email } });
+    } catch (error) {
+      logger.error("Profile update error", { error: error.message });
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+router.put(
+  "/api/settings/password",
+  auth,
+  body("currentPassword").notEmpty(),
+  body("newPassword").isLength({ min: 8 })
+    .matches(/[A-Z]/)
+    .matches(/[a-z]/)
+    .matches(/[0-9]/),
+  async (req, res) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array(), message: "Invalid new password format" });
+
+      const { currentPassword, newPassword } = req.body;
+      const user = await User.findById(req.user.id);
+
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) return res.status(400).json({ message: "Incorrect current password" });
+
+      user.password = await bcrypt.hash(newPassword, 10);
+      user.tokenVersion = (user.tokenVersion || 0) + 1;
+      await user.save();
+
+      res.json({ message: "Password updated successfully" });
+    } catch (error) {
+      logger.error("Password update error", { error: error.message });
+      res.status(500).json({ message: "Internal server error" });
+    }
+  }
+);
+
+module.exports = router;

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">TrustVault shield</title>
+  <path d="M32 4 55 13v16c0 15.6-9.5 25.7-23 31C18.5 54.7 9 44.6 9 29V13L32 4Z" fill="#1A0E2E" stroke="#8B5CF6" stroke-width="3"/>
+  <path d="M32 11 48 17v12c0 11.1-6.2 19.1-16 23.6C22.2 48.1 16 40.1 16 29V17l16-6Z" fill="none" stroke="#DAAF37" stroke-width="1.8"/>
+  <path d="m23.5 31.5 5.7 5.7 11.8-12" fill="none" stroke="#DAAF37" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+</svg>

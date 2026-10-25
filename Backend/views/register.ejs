@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TrustVault | Create account</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap"
+        rel="stylesheet">
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        base: '#0B0617',
+                        surface: '#1A0E2E',
+                        border: '#3C2B57',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0B0617;
+            color: #ffffff;
+            overflow-x: hidden;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #0B0617;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #27272a;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3f3f46;
+        }
+
+        /* Input autofill styling for dark mode */
+        input:-webkit-autofill,
+        input:-webkit-autofill:hover,
+        input:-webkit-autofill:focus,
+        input:-webkit-autofill:active,
+        select:-webkit-autofill {
+            -webkit-box-shadow: 0 0 0 30px #18181b inset !important;
+            -webkit-text-fill-color: white !important;
+            transition: background-color 5000s ease-in-out 0s;
+        }
+
+        /* Standardize select dropdown background in some browsers */
+        select option {
+            background-color: #1A0E2E;
+            color: #ffffff;
+        }
+
+        /* Animations */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fade-in {
+            animation: fadeIn 0.8s ease-out forwards;
+            opacity: 0;
+        }
+
+        .delay-100 {
+            animation-delay: 100ms;
+        }
+
+        .delay-200 {
+            animation-delay: 200ms;
+        }
+
+        .delay-300 {
+            animation-delay: 300ms;
+        }
+    </style>
+    <link rel="stylesheet" href="/assets/css/enterprise.css">
+    <link rel="icon" type="image/svg+xml" href="/assets/images/trustvault-mark.svg">
+</head>
+
+<body class="font-sans antialiased min-h-screen flex flex-col relative selection:bg-white selection:text-black">
+
+    <!-- Canvas Background -->
+    <canvas id="particleCanvas" class="fixed inset-0 z-0 pointer-events-none opacity-60"></canvas>
+
+    <!-- Top Navigation (Matching Screenshot) -->
+    <nav
+        class="relative z-50 w-full flex items-center justify-between px-6 py-5 border-b border-white/5 backdrop-blur-sm">
+        <div class="flex items-center gap-10">
+            <!-- Logo -->
+            <a href="/" class="flex items-center gap-3 group">
+                <img src="/assets/images/trustvault-mark.svg" alt="" width="34" height="34">
+                <span class="font-mono text-lg tracking-widest text-white">TrustVault</span>
+            </a>
+
+            <!-- Links -->
+            <div class="hidden md:flex items-center gap-8 text-sm text-gray-400">
+                <a href="#" class="hover:text-white transition-colors">Dashboard</a>
+                <a href="#" class="hover:text-white transition-colors">Analytics</a>
+                <a href="#" class="hover:text-white transition-colors">Workflows</a>
+                <a href="#" class="hover:text-white transition-colors">About Us</a>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-6">
+            <button class="text-gray-400 hover:text-white transition-colors">
+                <i class="ph ph-magnifying-glass text-xl"></i>
+            </button>
+            <a href="/login" class="text-sm text-gray-300 hover:text-white transition-colors">Sign in</a>
+            <a href="/register"
+                class="trustvault-button px-5 py-2 rounded text-sm font-medium transition-colors">Register</a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="relative z-10 flex-grow flex items-center justify-center px-4 py-12">
+        <div class="w-full max-w-md">
+
+            <!-- Typography Header -->
+            <div class="text-center mb-10 animate-fade-in">
+                <p class="font-mono text-[10px] tracking-[0.3em] text-gray-500 uppercase mb-4">Secure document sharing
+                </p>
+                <h1 class="text-4xl md:text-5xl font-serif text-white mb-2">Join the <span
+                        class="italic text-gray-300">Vault</span></h1>
+                <p class="text-sm text-gray-400 font-light mt-4 px-4">
+                    Create an account to begin synthesizing your documents and building your knowledge graph.
+                </p>
+            </div>
+
+            <!-- Registration Form -->
+            <div
+                class="bg-surface/80 backdrop-blur-xl border border-white/5 rounded-xl p-8 shadow-2xl animate-fade-in delay-100">
+
+                <!-- Global Error / Success Messages -->
+                <div id="formMessage"
+                    class="hidden mb-6 p-4 rounded text-sm flex items-start gap-3 border transition-all duration-300">
+                    <i id="formMessageIcon" class="ph text-lg mt-0.5"></i>
+                    <div id="formMessageText"></div>
+                </div>
+
+                <form id="registrationForm" class="space-y-5" novalidate>
+
+                    <!-- Name -->
+                    <div>
+                        <label for="fullName"
+                            class="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">Full
+                            Name</label>
+                        <input type="text" id="fullName" name="fullName" required
+                            class="w-full px-4 py-3 bg-base border border-border rounded text-sm text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all placeholder-gray-600"
+                            placeholder=" Full Name">
+                        <p class="hidden text-red-400 text-xs mt-1 font-light" id="nameError">Please enter your full
+                            name</p>
+                    </div>
+
+                    <!-- Email -->
+                    <div>
+                        <label for="email"
+                            class="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">Work
+                            Email</label>
+                        <input type="email" id="email" name="email" required
+                            class="w-full px-4 py-3 bg-base border border-border rounded text-sm text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all placeholder-gray-600"
+                            placeholder="Email">
+                        <p class="hidden text-red-400 text-xs mt-1 font-light" id="emailError">Please enter a valid
+                            email address</p>
+                    </div>
+
+                    <!-- Role Based Access Selection -->
+                    <div>
+                        <label for="role"
+                            class="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">System
+                            Role</label>
+                        <div class="relative">
+                            <select id="role" name="role" required
+                                class="w-full px-4 py-3 bg-base border border-border rounded text-sm text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all appearance-none cursor-pointer">
+                                <option value="" disabled selected class="text-gray-600">Select your access level...
+                                </option>
+                                <option value="admin" disabled>Administrator</option>
+                                <option value="owner">Document Owner</option>
+                                <option value="editor">Editor</option>
+                                <option value="viewer">Viewer</option>
+                            </select>
+                            <div
+                                class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                                <i class="ph ph-caret-down"></i>
+                            </div>
+                        </div>
+                        <p class="hidden text-red-400 text-xs mt-1 font-light" id="roleError">Please select a system
+                            role</p>
+                        <p class="text-xs text-gray-500 mt-2">Administrator access is assigned by an existing administrator.</p>
+                    </div>
+
+                    <!-- Password -->
+                    <div>
+                        <label for="password"
+                            class="block text-xs font-mono text-gray-400 uppercase tracking-wider mb-2">Password</label>
+                        <div class="relative">
+                            <input type="password" id="password" name="password" required
+                                class="w-full px-4 py-3 bg-base border border-border rounded text-sm text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all placeholder-gray-600 pr-10"
+                                placeholder="••••••••">
+                            <button type="button" id="togglePassword"
+                                class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-white transition-colors focus:outline-none">
+                                <i class="ph ph-eye" id="eyeIcon"></i>
+                            </button>
+                        </div>
+                        <p class="hidden text-red-400 text-xs mt-1 font-light" id="passwordError">Password must be at
+                            least 8 characters</p>
+                    </div>
+
+                    <!-- Submit Button -->
+                    <button type="submit" id="submitBtn"
+                        class="trustvault-button w-full mt-8 font-medium py-3 px-4 rounded transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-base flex justify-center items-center gap-2">
+                        <span>Register</span>
+                        <i class="ph ph-arrow-right"></i>
+                    </button>
+
+                    <!-- Terms -->
+                    <p class="text-center text-xs text-gray-600 mt-6 font-light">
+                        By registering, you agree to our <a href="#"
+                            class="text-gray-400 hover:text-white underline decoration-gray-600 underline-offset-2 transition-colors">Terms
+                            of Service</a> and <a href="#"
+                            class="text-gray-400 hover:text-white underline decoration-gray-600 underline-offset-2 transition-colors">Privacy
+                            Policy</a>.
+                    </p>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <!-- JavaScript Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            /* -----------------------------------------------------------
+               1. Particle Canvas Background Animation
+            ----------------------------------------------------------- */
+            const canvas = document.getElementById('particleCanvas');
+            const ctx = canvas.getContext('2d');
+
+            let particles = [];
+            const particleCount = 70; // Adjust for density
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            class Particle {
+                constructor() {
+                    this.x = Math.random() * canvas.width;
+                    this.y = Math.random() * canvas.height;
+                    // Size varies between 1px and 4px to match screenshot squares
+                    this.size = Math.random() * 3 + 1;
+                    // Movement speed
+                    this.speedX = Math.random() * 0.4 - 0.2;
+                    this.speedY = Math.random() * -0.5 - 0.1; // Float upwards slightly
+                    // Opacity between 0.1 and 0.6
+                    this.opacity = Math.random() * 0.5 + 0.1;
+                }
+
+                update() {
+                    this.x += this.speedX;
+                    this.y += this.speedY;
+
+                    // Wrap around edges
+                    if (this.y < 0) this.y = canvas.height;
+                    if (this.x < 0) this.x = canvas.width;
+                    if (this.x > canvas.width) this.x = 0;
+                }
+
+                draw() {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                    ctx.fillRect(this.x, this.y, this.size, this.size);
+                }
+            }
+
+            function initParticles() {
+                particles = [];
+                for (let i = 0; i < particleCount; i++) {
+                    particles.push(new Particle());
+                }
+            }
+
+            function animateParticles() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let i = 0; i < particles.length; i++) {
+                    particles[i].update();
+                    particles[i].draw();
+                }
+                requestAnimationFrame(animateParticles);
+            }
+
+            initParticles();
+            animateParticles();
+
+            /* -----------------------------------------------------------
+               2. Form Logic & Validation
+            ----------------------------------------------------------- */
+            const form = document.getElementById('registrationForm');
+            const passwordInput = document.getElementById('password');
+            const togglePasswordBtn = document.getElementById('togglePassword');
+            const eyeIcon = document.getElementById('eyeIcon');
+            const submitBtn = document.getElementById('submitBtn');
+            const formMessage = document.getElementById('formMessage');
+
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            let isPasswordVisible = false;
+
+            // Toggle Password
+            togglePasswordBtn.addEventListener('click', () => {
+                isPasswordVisible = !isPasswordVisible;
+                passwordInput.type = isPasswordVisible ? 'text' : 'password';
+                eyeIcon.className = isPasswordVisible ? 'ph ph-eye-slash' : 'ph ph-eye';
+            });
+
+            // Toggle Error UI
+            function toggleError(inputId, errorId, isValid) {
+                const input = document.getElementById(inputId);
+                const error = document.getElementById(errorId);
+                if (!isValid) {
+                    input.classList.add('border-red-500/50', 'focus:border-red-500', 'focus:ring-red-500');
+                    input.classList.remove('border-border', 'focus:border-white', 'focus:ring-white');
+                    error.classList.remove('hidden');
+                } else {
+                    input.classList.remove('border-red-500/50', 'focus:border-red-500', 'focus:ring-red-500');
+                    input.classList.add('border-border', 'focus:border-white', 'focus:ring-white');
+                    error.classList.add('hidden');
+                }
+            }
+
+            // Submit Handler
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                formMessage.classList.add('hidden');
+
+                const name = document.getElementById('fullName').value.trim();
+                const email = document.getElementById('email').value.trim();
+                const role = document.getElementById('role').value;
+                const pwd = passwordInput.value;
+
+                let isValid = true;
+
+                const isNameValid = name.length > 0;
+                toggleError('fullName', 'nameError', isNameValid);
+                if (!isNameValid) isValid = false;
+
+                const isEmailValid = emailRegex.test(email);
+                toggleError('email', 'emailError', isEmailValid);
+                if (!isEmailValid) isValid = false;
+
+                const isRoleValid = role !== "";
+                toggleError('role', 'roleError', isRoleValid);
+                if (!isRoleValid) isValid = false;
+
+                const isPwdValid = pwd.length >= 8;
+                toggleError('password', 'passwordError', isPwdValid);
+                if (!isPwdValid) isValid = false;
+
+                if (isValid) {
+                    // Simulate Loading
+                    submitBtn.disabled = true;
+                    submitBtn.classList.add('opacity-70', 'cursor-not-allowed');
+                    submitBtn.innerHTML = `<i class="ph ph-spinner animate-spin text-xl"></i> Initializing Workspace...`;
+
+                    fetch('/register', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            username: name,
+                            email: email,
+                            password: pwd,
+                            "confirm-password": pwd,
+                            role: role
+                        })
+                    })
+                        .then(response => response.json().then(data => ({ status: response.status, ok: response.ok, data })))
+                        .then(({ status, ok, data }) => {
+                            if (ok) {
+                                form.classList.add('hidden');
+                                formMessage.classList.remove('hidden', 'bg-red-500/10', 'text-red-400', 'border-red-500/20');
+                                formMessage.classList.add('bg-white/5', 'text-white', 'border-white/10', 'p-6', 'flex-col', 'items-center', 'text-center', 'animate-fade-in');
+
+                                const displayRole = role === 'owner' ? 'Document Owner' : role === 'editor' ? 'Editor' : 'Viewer';
+                                document.getElementById('formMessageIcon').className = 'ph-light ph-check-circle text-4xl text-white mb-2';
+                                document.getElementById('formMessageText').innerHTML = `
+                                <h3 class="text-xl font-serif mb-2">Welcome to the Vault, ${displayRole}</h3>
+                                <p class="text-sm text-gray-400 font-light mb-6">Your intelligent archive is ready. Please proceed to login.</p>
+                                <button onclick="window.location.href='/login'" class="w-full px-4 py-2 bg-white text-black rounded text-sm font-medium hover:bg-gray-200 transition-colors">Go to Login</button>
+                            `;
+                            } else {
+                                submitBtn.disabled = false;
+                                submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                                submitBtn.innerHTML = `<span>Register</span><i class="ph ph-arrow-right"></i>`;
+
+                                formMessage.classList.remove('hidden', 'bg-white/5', 'text-white', 'border-white/10', 'flex-col', 'items-center', 'text-center');
+                                formMessage.classList.add('bg-red-500/10', 'text-red-400', 'border-red-500/20');
+                                document.getElementById('formMessageIcon').className = 'ph-fill ph-warning-circle text-lg mt-0.5 text-red-400';
+
+                                let errorMsg = data.message || "Registration failed. Please try again.";
+                                if (data.errors && data.errors.length > 0) {
+                                    errorMsg = data.errors.map(err => err.msg).join("<br>");
+                                }
+                                document.getElementById('formMessageText').innerHTML = errorMsg;
+                            }
+                        })
+                        .catch(error => {
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('opacity-70', 'cursor-not-allowed');
+                            submitBtn.innerHTML = `<span>Register</span><i class="ph ph-arrow-right"></i>`;
+
+                            formMessage.classList.remove('hidden', 'bg-white/5', 'text-white', 'border-white/10', 'flex-col', 'items-center', 'text-center');
+                            formMessage.classList.add('bg-red-500/10', 'text-red-400', 'border-red-500/20');
+                            document.getElementById('formMessageIcon').className = 'ph-fill ph-warning-circle text-lg mt-0.5 text-red-400';
+                            document.getElementById('formMessageText').innerHTML = "Network error. Please try again.";
+                        });
+                } else {
+                    // Error State
+                    formMessage.classList.remove('hidden', 'bg-white/5', 'text-white', 'border-white/10', 'flex-col', 'items-center', 'text-center');
+                    formMessage.classList.add('bg-red-500/10', 'text-red-400', 'border-red-500/20');
+                    document.getElementById('formMessageIcon').className = 'ph-fill ph-warning-circle text-lg mt-0.5 text-red-400';
+                    document.getElementById('formMessageText').innerHTML = `Please review the highlighted fields above.`;
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

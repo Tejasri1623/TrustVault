@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrustVault | Administrative Activity</title>
+  <link rel="stylesheet" href="/assets/css/enterprise.css">
+  <link rel="icon" type="image/svg+xml" href="/assets/images/trustvault-mark.svg">
+  <style>
+    body { padding: 2rem; }
+    main { max-width: 1200px; margin: 0 auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 2rem; }
+    h1 { margin: 0; }
+    a { color: #daaf37; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 16px; background: rgba(26, 14, 46, .85); }
+    table { width: 100%; border-collapse: collapse; min-width: 820px; }
+    th, td { padding: .9rem 1rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; }
+    td { overflow-wrap: anywhere; }
+    #status { color: var(--muted); margin: 1rem 0; }
+    @media (max-width: 640px) { body { padding: 1rem; } header { align-items: flex-start; flex-direction: column; } }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div>
+        <p>TrustVault security</p>
+        <h1>Administrative activity</h1>
+      </div>
+      <a href="/admin/dashboard">Back to admin dashboard</a>
+    </header>
+    <p id="status" role="status">Loading latest audit events…</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Time</th><th>Actor</th><th>Action</th><th>Resource</th><th>Outcome</th><th>Details</th></tr>
+        </thead>
+        <tbody id="events"></tbody>
+      </table>
+    </div>
+  </main>
+  <script>
+    const statusElement = document.getElementById("status");
+    const tableBody = document.getElementById("events");
+    fetch("/admin/api/activity", { headers: { Accept: "application/json" } })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to load audit activity.");
+        return response.json();
+      })
+      .then(({ events }) => {
+        tableBody.replaceChildren();
+        for (const event of events) {
+          const row = document.createElement("tr");
+          const values = [
+            new Date(event.createdAt).toLocaleString(),
+            event.actorUserId?.username || event.actorRole || "system",
+            event.action,
+            event.resourceName || event.resourceId || event.resourceType,
+            event.outcome,
+            JSON.stringify(event.details || {})
+          ];
+          for (const value of values) {
+            const cell = document.createElement("td");
+            cell.textContent = String(value);
+            row.appendChild(cell);
+          }
+          tableBody.appendChild(row);
+        }
+        statusElement.textContent = events.length ? `Showing ${events.length} latest events.` : "No audit events recorded yet.";
+      })
+      .catch((error) => {
+        statusElement.textContent = error.message;
+      });
+  </script>
+</body>
+</html>
